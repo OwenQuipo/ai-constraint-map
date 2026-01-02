@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Tradeoff Map</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=VT323&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0f1623;
+      --panel: #0f0f14;
+      --accent: #f2f2f2;
+      --accent-strong: #ffffff;
+      --muted: #c8ccd4;
+      --edge: #1c1c24;
+      --danger: #b5b5b5;
+      --warning: #a0a0a0;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      background: #09090c;
+      color: #e6e6ec;
+      font-family: 'VT323', 'IBM Plex Mono', monospace;
+    }
+    .shell {
+      width: 100%;
+      max-width: 1320px;
+      margin: 18px auto;
+      padding: 12px 16px 18px;
+      border-left: 2px solid #1a1a22;
+      border-right: 2px solid #1a1a22;
+      background: #0b0b10;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 18px;
+      margin-bottom: 14px;
+      border-bottom: 1px solid #1b2332;
+      padding-bottom: 8px;
+      animation: slideInTop 600ms ease-out;
+    }
+    .title {
+      line-height: 1.2;
+      animation: textPulse 4s ease-in-out infinite alternate;
+    }
+    .title h1 {
+      margin: 0;
+      font-size: 22px;
+      letter-spacing: 0.5px;
+      font-weight: 600;
+      text-transform: uppercase;
+      color: #f5f5f5;
+    }
+    .title p {
+      margin: 5px 0 0;
+      color: #b9bdc6;
+      font-size: 13px;
+      letter-spacing: 0.2px;
+    }
+    .toggles {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      align-items: center;
+      animation: slideInRight 640ms ease-out;
+    }
+    .toggle, .scale-btn {
+      background: #0f0f14;
+      border: 1px solid #2a2a32;
+      color: #d0d2d8;
+      padding: 9px 11px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-family: 'VT323', monospace;
+      font-size: 14px;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      transition: background 80ms ease, border-color 80ms ease, color 80ms ease;
+      border-radius: 0;
+      min-width: 140px;
+      justify-content: center;
+    }
+    .toggle.active, .scale-btn.active {
+      border-color: var(--accent);
+      color: #ffffff;
+      background: #16161d;
+    }
+    .scale-group {
+      display: inline-flex;
+      border: 1px solid #2b3548;
+      border-radius: 0;
+      overflow: hidden;
+    }
+    .scale-btn + .scale-btn {
+      border-left: 1px solid #2b3548;
+    }
+    .toggle span {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 0;
+      border: 1px solid #3a475e;
+      background: #0a0f18;
+    }
+    .toggle.active span {
+      border-color: var(--accent);
+      background: var(--accent);
+    }
+    .canvas-wrap {
+      position: relative;
+      background: #0c0c12;
+      border: 1px solid #1a1a22;
+      padding: 6px;
+      image-rendering: pixelated;
+      background-image:
+        linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+      background-size: 12px 12px, 12px 12px;
+      overflow: hidden;
+    }
+    .canvas-wrap::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0) 40%, rgba(255,255,255,0.05) 80%);
+      mix-blend-mode: soft-light;
+      opacity: 0.14;
+      animation: scan 6s linear infinite;
+      pointer-events: none;
+    }
+    canvas {
+      width: 100%;
+      height: clamp(380px, 58vh, 560px);
+      display: block;
+      background: transparent;
+    }
+    .narrative {
+      margin-top: 10px;
+      font-size: 18px;
+      color: #f7f7f7;
+      letter-spacing: 0.3px;
+      text-align: left;
+      padding: 12px 12px 10px;
+      border-top: 1px solid #1a1a22;
+      text-transform: none;
+      position: relative;
+      animation: slideInBottom 700ms ease-out, textDrift 5s ease-in-out infinite alternate;
+    }
+    .tooltip {
+      position: fixed;
+      pointer-events: none;
+      background: #0c0c12;
+      color: #e8e8ee;
+      padding: 7px 9px;
+      border-radius: 0;
+      border: 1px solid #262631;
+      font-size: 12px;
+      opacity: 0;
+      transition: opacity 0ms;
+      z-index: 20;
+      max-width: 260px;
+      line-height: 1.35;
+    }
+    .hotspot {
+      position: absolute;
+      width: 14px;
+      height: 14px;
+      border-radius: 0;
+      border: 1px solid rgba(235,235,235,0.55);
+      background: rgba(255,255,255,0.08);
+      cursor: help;
+    }
+    @keyframes slideInTop {
+      from { opacity: 0; transform: translateY(-14px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes slideInRight {
+      from { opacity: 0; transform: translateX(14px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+    @keyframes slideInBottom {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes textPulse {
+      0% { letter-spacing: 0.4px; opacity: 0.85; }
+      100% { letter-spacing: 1.2px; opacity: 1; }
+    }
+    @keyframes textDrift {
+      0% { transform: translateX(0); }
+      100% { transform: translateX(6px); }
+    }
+    @keyframes scan {
+      0% { transform: translateY(-100%); }
+      100% { transform: translateY(100%); }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <div class="title">
+        <h1>The AI Constraint Map (DEMO)</h1>
+      </div>
+      <div class="toggles" id="toggleRow">
+        <button class="toggle" data-key="realtime" data-tip="Real-time limits: slow responses are disqualified immediately.">
+          <span></span>
+          REALTIME HARD LIMIT
+        </button>
+        <button class="toggle" data-key="cost" data-tip="Cost ceiling: high-burn approaches fall out under budget pressure.">
+          <span></span>
+          COST CEILING
+        </button>
+        <div class="scale-group" data-tip="Load increase: most fragile baselines collapse as scale rises.">
+          <button class="scale-btn active" data-scale="0.2">LOAD 1x</button>
+          <button class="scale-btn" data-scale="0.55">LOAD 5x</button>
+          <button class="scale-btn" data-scale="0.9">LOAD 20x</button>
+        </div>
+      </div>
+    </header>
+
+    <div class="canvas-wrap">
+      <canvas id="map"></canvas>
+      <div class="hotspot" style="bottom: 12px; left: 50%;" data-tip="Latency: visible wait time for users—non-negotiable under real-time demands."></div>
+      <div class="hotspot" style="top: 12px; left: 12px;" data-tip="Cost: production cost per request; budgets force drop-offs."></div>
+      <div class="hotspot" style="top: 18%; right: 18%;" data-tip="Quality: usable, reliable output as perceived by end users."></div>
+      <div class="hotspot" style="top: 46%; left: 66%;" data-tip="Baseline solutions: typical builds most teams try; many fail when pressure rises."></div>
+    </div>
+    <div class="narrative" id="narrative">Constraints and load carve the map down to what can actually survive.</div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('map');
+    const ctx = canvas.getContext('2d');
+    const toggles = document.querySelectorAll('.toggle');
+    const narrative = document.getElementById('narrative');
+    const scaleButtons = document.querySelectorAll('.scale-btn');
+    const tooltip = document.createElement('div');
+    tooltip.className = 'tooltip';
+    document.body.appendChild(tooltip);
+
+    const state = {
+      constraints: {
+        realtime: { active: true, alpha: 1, label: 'Real-time required', maxLatency: 0.55 },
+        cost: { active: false, alpha: 0, label: 'Enterprise cost ceiling', maxCost: 0.55 }
+      },
+      scale: 0.2,
+      point: { x: 0.35, y: 0.36, quality: 0.82 },
+      competitor: { cx: 0.64, cy: 0.6, rx: 0.18, ry: 0.15, quality: 0.55, display: { rx: 0.18, ry: 0.15, alpha: 1 } },
+      productFlash: 0,
+      last: 0
+    };
+
+    toggles.forEach(btn => {
+      const key = btn.dataset.key;
+      btn.classList.toggle('active', state.constraints[key].active);
+      btn.addEventListener('click', () => {
+        const c = state.constraints[key];
+        c.active = !c.active;
+        btn.classList.toggle('active', c.active);
+      });
+    });
+    scaleButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        scaleButtons.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        state.scale = Number(btn.dataset.scale);
+      });
+    });
+    enableTooltips();
+
+    function resize() {
+      const rect = canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.imageSmoothingEnabled = false;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    function mapX(x) {
+      const pad = 56;
+      return pad + x * (canvas.getBoundingClientRect().width - pad * 2);
+    }
+    function mapY(y) {
+      const pad = 48;
+      const h = canvas.getBoundingClientRect().height - pad * 2;
+      return pad + (1 - y) * h;
+    }
+    function clamp(v, min, max) {
+      return Math.max(min, Math.min(max, v));
+    }
+    function lerp(a, b, t) {
+      return a + (b - a) * t;
+    }
+    function enableTooltips() {
+      const targets = document.querySelectorAll('[data-tip]');
+      targets.forEach(el => {
+        el.addEventListener('mouseenter', (e) => {
+          tooltip.textContent = el.getAttribute('data-tip') || '';
+          tooltip.style.opacity = 1;
+        });
+        el.addEventListener('mouseleave', () => {
+          tooltip.style.opacity = 0;
+        });
+        el.addEventListener('mousemove', (e) => {
+          tooltip.style.left = `${e.clientX + 14}px`;
+          tooltip.style.top = `${e.clientY + 14}px`;
+        });
+      });
+    }
+
+    function computePressures() {
+      const c = state.constraints;
+      const comp = state.competitor;
+      const scalePressure = clamp(Math.pow(state.scale, 1.4) * 1.2, 0, 1.4);
+      const latencyOver = c.realtime.active ? clamp((comp.cx + comp.rx * 0.8 - c.realtime.maxLatency) / 0.3, 0, 1) : 0;
+      const costOver = c.cost.active ? clamp((comp.cy + comp.ry * 0.8 - c.cost.maxCost) / 0.35, 0, 1) : 0;
+
+      const collapse = clamp(latencyOver + costOver + scalePressure, 0, 1.6);
+      const factor = clamp(1 - collapse * 0.9, 0.04, 1);
+      return { latencyOver, costOver, scalePressure, factor };
+    }
+
+    function drawBackground() {
+      const w = canvas.getBoundingClientRect().width;
+      const h = canvas.getBoundingClientRect().height;
+      ctx.fillStyle = '#0b0b10';
+      ctx.fillRect(0, 0, w, h);
+
+      // High-quality glow ridge
+      const qualityGlow = ctx.createRadialGradient(mapX(0.18), mapY(0.78), 40, mapX(0.2), mapY(0.8), w * 0.8);
+      qualityGlow.addColorStop(0, 'rgba(245,245,245,0.24)');
+      qualityGlow.addColorStop(0.4, 'rgba(200,200,200,0.08)');
+      qualityGlow.addColorStop(1, 'rgba(12,12,18,0)');
+      ctx.fillStyle = qualityGlow;
+      ctx.fillRect(0, 0, w, h);
+
+      ctx.save();
+      ctx.translate(12, 12);
+      ctx.strokeStyle = 'rgba(255,255,255,0.028)';
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= 6; i++) {
+        const t = i / 6;
+        const startX = mapX(0);
+        const startY = mapY(t);
+        const endX = mapX(t);
+        const endY = mapY(0);
+        ctx.beginPath();
+        ctx.moveTo(startX - 12, startY);
+        ctx.lineTo(endX, endY + 12);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    function drawAxes() {
+      const w = canvas.getBoundingClientRect().width;
+      const h = canvas.getBoundingClientRect().height;
+      const padX = 48;
+      const padY = 44;
+      const axisW = w - padX * 1.8;
+      const axisH = h - padY * 1.6;
+
+      ctx.save();
+      ctx.translate(padX * 0.8, padY * 0.8);
+
+      ctx.strokeStyle = '#3a3a45';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.moveTo(0, axisH);
+      ctx.lineTo(axisW, axisH);
+      ctx.lineTo(axisW - 8, axisH - 4);
+      ctx.moveTo(axisW, axisH);
+      ctx.lineTo(axisW - 8, axisH + 4);
+      ctx.moveTo(0, axisH);
+      ctx.lineTo(0, 0);
+      ctx.lineTo(-4, 8);
+      ctx.moveTo(0, 0);
+      ctx.lineTo(4, 8);
+      ctx.stroke();
+
+      ctx.fillStyle = '#d8d8dd';
+      ctx.font = '12px VT323, monospace';
+      ctx.fillText('FAST', 0, axisH + 18);
+      ctx.textAlign = 'right';
+      ctx.fillText('SLOW', axisW, axisH + 18);
+      ctx.textAlign = 'left';
+      ctx.rotate(-Math.PI / 2);
+      ctx.fillText('EXPENSIVE', -axisH + 6, -18);
+      ctx.textAlign = 'right';
+      ctx.fillText('CHEAP', 0, -18);
+      ctx.restore();
+    }
+
+    function drawCompetitor(regionAlpha, pressure) {
+      const { cx, cy, rx, ry, display } = state.competitor;
+      ctx.save();
+      const alpha = clamp(0.25 + 0.65 * display.alpha, 0.2, 1);
+      ctx.globalAlpha = alpha;
+      const shiftX = clamp(state.scale * 0.22, 0, 0.3);
+      const shiftY = clamp(state.scale * 0.18, 0, 0.26);
+      const desat = clamp(0.5 + pressure.factor * 0.5, 0.3, 1); // lower with pressure
+      const edgeFade = clamp(0.35 + pressure.factor * 0.5, 0.25, 0.85);
+      const fill = `rgba(190,190,190,${(0.04 + 0.3 * display.alpha * regionAlpha) * desat})`;
+      const stroke = `rgba(235,235,235,${0.45 * display.alpha * edgeFade})`;
+
+      const padX = 56;
+      const padY = 48;
+      const w = canvas.getBoundingClientRect().width;
+      const h = canvas.getBoundingClientRect().height;
+      const plotW = w - padX * 2;
+      const plotH = h - padY * 2;
+
+      const pixel = 4;
+      const minPxRaw = mapX(cx + shiftX - display.rx * 1.05);
+      const maxPxRaw = mapX(cx + shiftX + display.rx * 1.05);
+      const yA = mapY(cy + shiftY + display.ry * 1.05);
+      const yB = mapY(cy + shiftY - display.ry * 1.05);
+      const startPyRaw = Math.min(yA, yB);
+      const endPyRaw = Math.max(yA, yB);
+      const minPx = Math.floor(minPxRaw / pixel) * pixel;
+      const maxPx = Math.ceil(maxPxRaw / pixel) * pixel;
+      const startPy = Math.floor(startPyRaw / pixel) * pixel;
+      const endPy = Math.ceil(endPyRaw / pixel) * pixel;
+
+      ctx.fillStyle = fill;
+      ctx.strokeStyle = stroke;
+      const outlineRects = [];
+      for (let px = minPx; px <= maxPx; px += pixel) {
+        for (let py = startPy; py <= endPy; py += pixel) {
+          const cxPix = px + pixel / 2;
+          const cyPix = py + pixel / 2;
+          const normX = (cxPix - padX) / plotW;
+          const normY = 1 - ((cyPix - padY) / plotH);
+          const dx = (normX - (cx + shiftX)) / (display.rx * 1.02);
+          const dy = (normY - (cy + shiftY)) / (display.ry * 0.88);
+          const inside = dx * dx + dy * dy <= 1.02;
+          if (inside) {
+            ctx.fillRect(Math.round(px), Math.round(py), pixel, pixel);
+            outlineRects.push([Math.round(px), Math.round(py)]);
+          }
+        }
+      }
+
+      // Pixel outline only on perimeter cells, filled not stroked
+      const cellSet = new Set(outlineRects.map(([ox, oy]) => `${ox},${oy}`));
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = `rgba(255,255,255,${edgeFade})`;
+      const outlineSize = Math.max(1, pixel - 2);
+      const offset = (pixel - outlineSize) / 2;
+      outlineRects.forEach(([ox, oy]) => {
+        const left = `${ox - pixel},${oy}`;
+        const right = `${ox + pixel},${oy}`;
+        const up = `${ox},${oy - pixel}`;
+        const down = `${ox},${oy + pixel}`;
+        const isEdge = !cellSet.has(left) || !cellSet.has(right) || !cellSet.has(up) || !cellSet.has(down);
+        if (isEdge) {
+          ctx.fillRect(ox + offset, oy + offset, outlineSize, outlineSize);
+        }
+      });
+      ctx.globalAlpha = alpha;
+
+      const labelX = mapX(cx + shiftX);
+      const labelY = mapY(cy + shiftY);
+      ctx.fillStyle = '#e2e2e2';
+      ctx.font = '12px VT323, monospace';
+      ctx.fillText('BASELINE SOLUTIONS', labelX - 60, labelY);
+      ctx.restore();
+    }
+
+    function drawPoint(t, pressure) {
+      const { x, y } = state.point;
+      const px = mapX(x);
+      const py = mapY(y);
+      const pulse = 1 + Math.sin(t / 420);
+      ctx.save();
+      const pixel = 5;
+      const grid = [
+        [0.0, 0.4, 0.55, 0.4, 0.0],
+        [0.4, 0.65, 0.78, 0.65, 0.4],
+        [0.55, 0.78, 1.0, 0.78, 0.55],
+        [0.4, 0.65, 0.78, 0.65, 0.4],
+        [0.0, 0.4, 0.55, 0.4, 0.0]
+      ];
+      const size = grid.length;
+      const total = size * pixel + pulse;
+      const startX = px - (total / 2);
+      const startY = py - (total / 2);
+
+      for (let i = 0; i < size; i++) {
+        for (let j = 0; j < size; j++) {
+          const intensity = grid[i][j];
+          if (intensity <= 0) continue;
+          const gx = startX + j * pixel;
+          const gy = startY + i * pixel;
+          const flash = state.productFlash || 0;
+          const alpha = 0.3 + intensity * 0.6 + flash * 0.2;
+          const shade = Math.floor(180 + intensity * 70 + flash * 40);
+          ctx.fillStyle = `rgba(${shade},${shade},${shade},${alpha})`;
+          ctx.fillRect(Math.round(gx), Math.round(gy), pixel, pixel);
+        }
+      }
+
+      ctx.fillStyle = '#f7f7f7';
+      ctx.font = '12px VT323, monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText('YOUR PRODUCT', px + 12, py - 8);
+      ctx.restore();
+    }
+
+    function drawConstraintOverlays() {
+      const w = canvas.getBoundingClientRect().width;
+      const h = canvas.getBoundingClientRect().height;
+
+      const { realtime, cost } = state.constraints;
+
+      if (realtime.alpha > 0.01) {
+        const xCut = mapX(realtime.maxLatency);
+        ctx.fillStyle = `rgba(230,230,230,${0.22 * realtime.alpha})`;
+        ctx.fillRect(xCut, 0, w - xCut, h);
+        ctx.strokeStyle = `rgba(250,250,250,${0.7 * realtime.alpha})`;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(xCut, 0);
+        ctx.lineTo(xCut, h);
+        ctx.stroke();
+        ctx.save();
+        ctx.translate(xCut + 10, 24);
+        ctx.fillStyle = `rgba(245,245,245,${0.85 * realtime.alpha})`;
+        ctx.font = '12px VT323, monospace';
+        ctx.fillText('REALTIME CUTOFF', 0, 0);
+        ctx.restore();
+      }
+
+      if (cost.alpha > 0.01) {
+        const yCut = mapY(cost.maxCost);
+        ctx.fillStyle = `rgba(180,180,180,${0.18 * cost.alpha})`;
+        ctx.fillRect(0, 0, w, yCut);
+        ctx.strokeStyle = `rgba(230,230,230,${0.6 * cost.alpha})`;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(0, yCut);
+        ctx.lineTo(w, yCut);
+        ctx.stroke();
+        ctx.save();
+        ctx.translate(16, yCut - 10);
+        ctx.fillStyle = `rgba(240,240,240,${0.85 * cost.alpha})`;
+        ctx.font = '12px VT323, monospace';
+        ctx.fillText('COST CEILING', 0, 0);
+        ctx.restore();
+      }
+    }
+
+    function drawGrid() {
+      const w = canvas.getBoundingClientRect().width;
+      const h = canvas.getBoundingClientRect().height;
+      const steps = 5;
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255,255,255,0.028)';
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        const x = mapX(t);
+        const y = mapY(t);
+        ctx.beginPath();
+        ctx.moveTo(x, mapY(0));
+        ctx.lineTo(x, mapY(1));
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(mapX(0), y);
+        ctx.lineTo(mapX(1), y);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    function updateNarrative(pressure) {
+      const activeCount = Object.values(state.constraints).filter(c => c.active).length + 1; // include scale force
+      let line = 'Raw tradeoffs exposed; disciplined systems only.';
+      if (pressure.factor < 0.22 && activeCount >= 2) {
+        line = 'Scale and constraints leave a razor-thin corridor of viable systems.';
+      } else if (pressure.scalePressure > 0.65 && pressure.latencyOver > 0.3) {
+        line = 'Load plus latency cliffs erase most conventional options on contact.';
+      } else if (pressure.scalePressure > 0.65 && pressure.costOver > 0.25) {
+        line = 'Load reveals cost spikes; unoptimized baselines fold fast.';
+      } else if (pressure.latencyOver > 0.35 && pressure.costOver > 0.25) {
+        line = 'Real-time plus budget wipes out the familiar playbook.';
+      } else if (pressure.latencyOver > 0.35) {
+        line = 'Real-time pressure erases slow territory; only fast pockets remain.';
+      } else if (pressure.costOver > 0.35) {
+        line = 'Budget pressure compresses to lean, efficient builds only.';
+      } else if (pressure.scalePressure > 0.45) {
+        line = 'Small-scale wins collapse sharply once load rises.';
+      } else {
+        line = 'Constraints tighten; Your Product holds in the surviving corridor.';
+      }
+      narrative.textContent = line;
+    }
+
+    function animate(ts) {
+      const delta = ts - state.last;
+      state.last = ts;
+
+      Object.values(state.constraints).forEach(c => {
+        const target = c.active ? 1 : 0;
+        c.alpha += (target - c.alpha) * 0.28;
+      });
+
+      const pressure = computePressures();
+      if (pressure.factor < 0.2 && state.constraints.realtime.active && state.constraints.cost.active && state.scale > 0.5 && state.productFlash < 0.05) {
+        state.productFlash = 1;
+      }
+      state.productFlash *= 0.9;
+      const comp = state.competitor;
+      comp.display.rx = lerp(comp.display.rx, comp.rx * pressure.factor, 0.32);
+      comp.display.ry = lerp(comp.display.ry, comp.ry * pressure.factor, 0.32);
+      comp.display.alpha = lerp(comp.display.alpha, pressure.factor, 0.32);
+
+      drawBackground();
+      drawGrid();
+      drawAxes();
+      drawCompetitor(1, pressure);
+      drawConstraintOverlays();
+      drawPoint(ts, pressure);
+      updateNarrative(pressure);
+      requestAnimationFrame(animate);
+    }
+
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>
